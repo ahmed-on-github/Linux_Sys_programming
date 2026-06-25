@@ -22,7 +22,7 @@ int main(void){
         Reduce for normal termination */
         /* *((int *)0) = 0; /*Causes segmentation violation signal SIGSEV*/
 
-        exit(5); /* Normal exit */
+        return 5 ; /* or exit(5); /* Normal exit */
     }
     else{ /* Parent */
         printf("Parent is waiting for child with pid = %d ...\n", child_pid);
