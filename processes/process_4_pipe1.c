@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <sys/wait.h>
+
 #include <errno.h>
 #include <unistd.h>
 
@@ -45,8 +48,8 @@ void strtok_textExample(void){
 
 const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     static shell_parser_t l_shell_struct= {0};
-    static char* up  [256] = {0};   /*Allows 255 words in upstream command*/
-    static char* down[256] = {0};   /*Allows 255 words in downstream command */
+    static char* up  [256] = {0};   /* Allows 255 words in upstream command   */
+    static char* down[256] = {0};   /* Allows 255 words in downstream command */
 
     char **tmp_ptr = up;
     int up_i = 0, down_i = 0;
@@ -58,7 +61,7 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     memset(&l_shell_struct, 0, sizeof(shell_parser_t));
     */
 
-    if( cmnd == NULL  ){
+    if( cmnd_buff == NULL  ){
         perror("Empty command passed\n");
         return NULL;
     }
@@ -69,7 +72,7 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     }
     */
 
-    if( (tmp_ptr[*i_ptr] = strtok(cmnd_buff, " \t")) != NULL && i_ptr < 255 ){
+    if( (tmp_ptr[*i_ptr] = strtok(cmnd_buff, " \t")) != NULL && (*i_ptr) < 255 ){
         while( (tmp_ptr[++(*i_ptr)] = strtok(cmnd_buff, " \t")) != NULL ){
             switch(strlen(tmp_ptr[*i_ptr])){
                 case 1:
@@ -90,7 +93,7 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
 int main(void){
 
     strtok_textExample();
-    char cmnd_buff[BUFF_SIZE], temp_cmnd_buff[BUFF] = {0};
+    char cmnd_buff[BUFF_SIZE], temp_cmnd_buff[BUFF_SIZE] = {0};
     shell_parser_t *ret_ptr = NULL;
     int cmnd_exitStatus = 0;
     while(1){
@@ -101,12 +104,12 @@ int main(void){
         temp_cmnd_buff[sizeof(cmnd_buff)] = '\0';
 
         if( (ret_ptr = shell_readAndParseCmnd(cmnd_buff)) ){
-            switch( ret_ptr->pipeFound ){
-                case false:
+            switch( (int)(ret_ptr->pipeFound) ){
+                case (int)false:
                     /* Just fork once and execute the upstream command*/
                     pid_t fork_res = fork();
                     if( fork_res == -1){
-                        perror("Could not fork for command %s with exit status = %d\n", temp_cmnd_buff, errno);
+                        fprintf(stderr,"Could not fork for command %s with exit status = %d\n", temp_cmnd_buff, errno);
                     }
                     else if( fork_res == 0 ){ /* Child process*/
                         execvp(ret_ptr->upStream[0], ret_ptr->upStream);
@@ -115,12 +118,12 @@ int main(void){
                         /* Nothing, shell will just wait for the current command */
                         wait(&cmnd_exitStatus);
                     }
-                case true:
+                case (int)true:
                     /* Create a pipe, fork twice and execute both the  upstream  and downstream command*/
 
 
                     ret_ptr->pipeFound = false ; /* Default for next commands */
-                default
+                default: continue;
 
             }
         }
