@@ -105,7 +105,7 @@ int main(void){
         memset(cmnd_buff, 0, BUFF_SIZE);
         fgets(cmnd_buff, BUFF_SIZE,stdin);
         memcpy(temp_cmnd_buff, cmnd_buff, sizeof(cmnd_buff));
-        temp_cmnd_buff[sizeof(cmnd_buff)] = '\0';
+        temp_cmnd_buff[sizeof(cmnd_buff) -1] = '\0';
 
         if( (ret_ptr = shell_readAndParseCmnd(cmnd_buff)) ){
             switch( (int)(ret_ptr->pipeFound) ){
