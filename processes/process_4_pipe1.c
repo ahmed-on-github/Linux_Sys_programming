@@ -23,7 +23,12 @@ typedef struct shell_parser{
 
 typedef union pipe_t{
     int fd[2];
-    int downstream /* on fd[0] */, upstream /* on fd[1] */;
+    /* Must both be wrapped in a struct.
+       Otherwise, both will aceess fd[0]
+    */
+    struct {
+        int downstream /* on fd[0] */, upstream /* on fd[1] */;
+    } 
 }pipe_t;
 
 
