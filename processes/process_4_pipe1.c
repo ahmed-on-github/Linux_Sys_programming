@@ -51,6 +51,10 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     static char* up  [256] = {0};   /* Allows 255 words in upstream command   */
     static char* down[256] = {0};   /* Allows 255 words in downstream command */
 
+    l_shell_struct.upStream = up;  
+    l_shell_struct.downStream = down;
+    l_shell_struct.pipeFound = false;
+    
     char **tmp_ptr = up;
     int up_i = 0, down_i = 0;
     int *i_ptr = &up_i;
@@ -72,8 +76,8 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     }
     */
 
-    if( (tmp_ptr[*i_ptr] = strtok(cmnd_buff, " \t")) != NULL && (*i_ptr) < 255 ){
-        while( (tmp_ptr[++(*i_ptr)] = strtok(cmnd_buff, " \t")) != NULL ){
+    if( (tmp_ptr[*i_ptr] = strtok(cmnd_buff, " \t\n")) != NULL && (*i_ptr) < 255 ){
+        while( (tmp_ptr[++(*i_ptr)] = strtok(NULL, " \t\n")) != NULL ){
             switch(strlen(tmp_ptr[*i_ptr])){
                 case 1:
                     if( tmp_ptr == up && tmp_ptr[*i_ptr][0] == '|'){
@@ -86,7 +90,7 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
                     continue;
             }
         }
-        tmp_ptr[++(*i_ptr)] = NULL; /*Terminate the command (either upstream or downstream)*/
+        tmp_ptr[(*i_ptr)] = NULL; /*Terminate the command (either upstream or downstream)*/
     }
     return &l_shell_struct;
 }
@@ -108,21 +112,26 @@ int main(void){
                 case (int)false:
                     /* Just fork once and execute the upstream command*/
                     pid_t fork_res = fork();
-                    if( fork_res == -1){
+                    if( fork_res == -1){ /* Parent process*/
                         fprintf(stderr,"Could not fork for command %s with exit status = %d\n", temp_cmnd_buff, errno);
                     }
                     else if( fork_res == 0 ){ /* Child process*/
                         execvp(ret_ptr->upStream[0], ret_ptr->upStream);
+                        /* If execvp() returns, meaning an error occurred, and will fork again (fork bomb), then must exit */
+                        fprintf(stderr,"Wrong command %s with exit status %d\n", temp_cmnd_buff, errno);
+                        exit(errno);
                     }
                     else{ /* Parent process*/
                         /* Nothing, shell will just wait for the current command */
                         wait(&cmnd_exitStatus);
                     }
+                    break;
                 case (int)true:
                     /* Create a pipe, fork twice and execute both the  upstream  and downstream command*/
 
 
                     ret_ptr->pipeFound = false ; /* Default for next commands */
+                    break;
                 default: continue;
 
             }
