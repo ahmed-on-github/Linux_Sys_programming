@@ -40,3 +40,4 @@ int main(int argc, char **argv){
 
         TEST_ETC_HOSTS_PERMS();
         return 0;
+}
