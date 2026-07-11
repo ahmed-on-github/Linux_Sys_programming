@@ -1,5 +1,6 @@
 /**
 *** Small shell allowing for a piped command (2 commands)
+     Version 1, working
 **/
 
 #include <stdio.h>
@@ -27,8 +28,8 @@ typedef union pipe_t{
        Otherwise, both will aceess fd[0]
     */
     struct {
-        int downstream /* on fd[0] */, upstream /* on fd[1] */;
-    } 
+        int read_end /* downstream on fd[0] */, write_end /* upstream on fd[1] */;
+    };
 }pipe_t;
 
 
@@ -44,10 +45,10 @@ void strtok_textExample(void){
 
     /*String tokenization*/
     char *words[10] = {NULL}; int i = 0;
-    if( ((words[0] = strtok(buff," ")) != NULL) && printf("%s\n", words[0]))
-        while( words[++i] = strtok(NULL," \t") ){
+    if( ((words[0] = strtok(buff," \t\n")) != NULL) && printf("%s\n", words[0]))
+        while( (words[++i] = strtok(NULL," \t\n")) ){
             printf("%s\n", words[i]);
-        }
+    }
     printf("After strtok(): Entered string: %s\n", buff); /* Only 1st token before any delimiter */
 }
 
@@ -56,12 +57,13 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
     static char* up  [256] = {0};   /* Allows 255 words in upstream command   */
     static char* down[256] = {0};   /* Allows 255 words in downstream command */
 
-    l_shell_struct.upStream = up;  
+    l_shell_struct.upStream = up;
     l_shell_struct.downStream = down;
     l_shell_struct.pipeFound = false;
-    
+
     char **tmp_ptr = up;
-    int up_i = 0, down_i = 0;
+    int up_i = 0;    /*Must be 0 initially as it 1st passes through post-increment*/
+    int down_i = -1; /*Must be -1 initially as it 1st passes through pre-increment*/
     int *i_ptr = &up_i;
 
     /* Solved by ending with a placing a NULL pointer at end
@@ -101,7 +103,7 @@ const shell_parser_t* shell_readAndParseCmnd(char *cmnd_buff){
 }
 int main(void){
 
-    strtok_textExample();
+    //strtok_textExample();
     char cmnd_buff[BUFF_SIZE], temp_cmnd_buff[BUFF_SIZE] = {0};
     shell_parser_t *ret_ptr = NULL;
     int cmnd_exitStatus = 0;
@@ -132,14 +134,66 @@ int main(void){
                     }
                     break;
                 case (int)true:
-                    /* Create a pipe, fork twice and execute both the  upstream  and downstream command*/
+                    /* Create a pipe, fork twice and execute both the  upstream  and downstream command */
+                    pipe_t pipe1 = {0}; int pipe_ret = 0 ;
+                    pid_t pid1, pid2;
+                    /* Create the pipe */
+                    if( (pipe_ret = pipe((int *)(&pipe1))) == 0 ){
+                        /* Fork twice */
 
+                        if( (pid1 = fork()) < 0 ){
+                            perror("fork: ");
+                            fprintf(stderr, "errno = %d\n", errno);
+                            break;
+                        }
+                        else if( pid1 == 0 ){
+                            dup2( pipe1.write_end, STDOUT_FILENO );
+                            close(pipe1.read_end);
+
+                            execvp(ret_ptr->upStream[0], ret_ptr->upStream);
+                            perror(ret_ptr->upStream[0] );
+                            fprintf(stderr,"errno = %d\n", errno);
+                            exit(errno);
+
+                        }
+
+                        if( (pid2 = fork()) < 0 ){
+                            perror("fork: ");
+                            fprintf(stderr, "errno = %d\n", errno);
+                            break;
+                        }
+                        else if( pid2 == 0 ){
+                            dup2( pipe1.read_end, STDIN_FILENO );
+                            close(pipe1.write_end);
+
+                            execvp(ret_ptr->downStream[0], ret_ptr->downStream);
+                            perror(ret_ptr->downStream[0] );
+                            fprintf(stderr,"errno = %d\n", errno);
+                            exit(errno);
+
+                        }
+                    }
+                    else{
+                        perror("pipe: ");
+                        fprintf(stderr, "errno = %d\n", errno);
+                        break ; // exit(errno);
+                    }
+                    /* Only parent reaches here */
+                    /* close pipe ends */
+                    close(pipe1.read_end);
+                    close(pipe1.write_end);
+                    /* wait for children processes */
+                    waitpid(pid1, NULL, 0);
+                    waitpid(pid2, NULL, 0);
 
                     ret_ptr->pipeFound = false ; /* Default for next commands */
                     break;
                 default: continue;
 
             }
+        }
+        else {
+            printf("\n");
         }
     }
     return 0;
