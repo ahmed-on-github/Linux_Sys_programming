@@ -1,0 +1,3 @@
+Hi!
+This is random text used for only testing gather scatter file access.
+The scattered output will be written at "dest.txt" :).
