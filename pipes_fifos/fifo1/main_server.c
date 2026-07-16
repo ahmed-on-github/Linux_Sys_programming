@@ -41,7 +41,7 @@ int main(int argc, char **argv){
         exit(errno);
     }
     /* Open server fifo file */
-    if((fd_server = open(SERVER_FIFO, O_RDONLY)) < 0){
+    if((fd_server = open(SERVER_FIFO, O_RDONLY | O_NONBLOCK)) < 0){
         perror("open: server fifo");
         exit(errno);
     }
@@ -66,7 +66,7 @@ int main(int argc, char **argv){
             sum += tmp_d;
         }
         /* open client fifo file */
-        if( (fd_client = open(return_fifo, O_WRONLY)) ){
+        if( (fd_client = open(return_fifo, O_WRONLY | O_NONBLOCK)) ){
             perror("open: client fifo ");
             exit(errno);
         }
@@ -74,7 +74,7 @@ int main(int argc, char **argv){
             sprintf(buf, "error in input.\n");
         }
         else{
-            sprintf(buf, "sum = %.8g\n", sum);
+            sprintf(buf, "sum = %.8g\n\0", sum);
         }
 
         if( write(fd_client, buf, strlen(buf)) < strlen(buf)){
