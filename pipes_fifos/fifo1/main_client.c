@@ -28,7 +28,7 @@ char client_fifo_name [40] ;
 
 void operation(void){
     /* Open server fifo for writing */
-    if((fd_server = open(SERVER_FIFO, O_WRONLY))<0){
+    if((fd_server = open(SERVER_FIFO, O_WRONLY | O_NONBLOCK))<0){
         perror("open: ");
         exit(errno);
     }
@@ -59,8 +59,8 @@ int main(int argc, char **argv){
     sigaction(SIGTERM, &signal_struct, NULL);
 
     /* Create Fifo for client process */
-    sprintf(client_fifo_name
-    , "/tmp/addition_client_fifo_%d\0", getpid());
+    snprintf(client_fifo_name, sizeof(client_fifo_name)
+    , "/tmp/addition_client_fifo_%ld", getpid());
 
     /* Create fifo */
     if ( mkfifo(client_fifo_name, 0644) < 0
@@ -70,7 +70,7 @@ int main(int argc, char **argv){
     }
 
     /* Open client fifo file for reading */
-    if((fd_client = open(client_fifo_name, O_RDONLY))<0){
+    if((fd_client = open(client_fifo_name, O_RDONLY | O_NONBLOCK))<0){
         perror("open: ");
         exit(errno);
     }
@@ -112,4 +112,6 @@ int main(int argc, char **argv){
         close(fd_client);  // close(fd_server); already closed in operaion()
     }
     return 0;
+
 }
+
