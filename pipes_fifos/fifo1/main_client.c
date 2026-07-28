@@ -28,7 +28,7 @@ char client_fifo_name [40] ;
 
 void operation(void){
     /* Open server fifo for writing */
-    if((fd_server = open(SERVER_FIFO, O_WRONLY | O_NONBLOCK))<0){
+    if((fd_server = open(SERVER_FIFO, O_WRONLY /*| O_NONBLOCK*/))<0){
         perror("open: ");
         exit(errno);
     }
@@ -41,8 +41,9 @@ void operation(void){
         perror("close: ");
     }
     /* read sum from server process in same fifo buf */
-    if( (bytes = read(fd_client, fifo_buf, 4096 )) < 0){
-        perror("read: ");
+    /* lseek(fd_client,0, SEEK_SET);  // read from start? No, does not work with fifos*/
+    while((bytes = read(fd_client, fifo_buf, 4096 )) <= 0){
+        //perror("read: ");
     }
 }
 
@@ -56,6 +57,7 @@ int main(int argc, char **argv){
     signal_struct.sa_flags = 0;
     signal_struct.sa_handler = signal_handler;
 
+    sigaction(SIGINT, &signal_struct, NULL);
     sigaction(SIGTERM, &signal_struct, NULL);
 
     /* Create Fifo for client process */
@@ -69,12 +71,21 @@ int main(int argc, char **argv){
         exit(errno);
     }
 
-    /* Open client fifo file for reading */
+    /*  Open client fifo file for reading.
+        The open was made non-blocking to proceed with code execution,
+        then can then make blocking again to ensure syncronized reads from it,
+        or just ensure we block until we read from it at least 1 byte
+    */
     if((fd_client = open(client_fifo_name, O_RDONLY | O_NONBLOCK))<0){
         perror("open: ");
         exit(errno);
     }
-
+    /*
+    int fd_client_flags = 0;
+    fd_client_flags = fcntl(fd_client,F_GETFD);
+    fd_client_flags &= (~O_NONBLOCK);
+    fcntl(fd_client, F_SETFD, fd_client_flags);
+    */
     /* place fifo name in buffer */
     size_t client_fifo_name_len = strlen(client_fifo_name);
 
@@ -84,9 +95,18 @@ int main(int argc, char **argv){
     if(argc == 1){
         while( printf("Enter numbers: ") && fgets(fifo_buf + client_fifo_name_len +1,
         4096 -  client_fifo_name_len - 1, stdin) != NULL ){
+        /*
+        while( printf("Enter numbers: ") && fread(fifo_buf + client_fifo_name_len + 1,
+                            1, 4096 -  client_fifo_name_len - 1,
+                            stdin) > 0 ){ */ /* fread does not stop on \n as it reads binary streams*/
+
+            fifo_buf[ strlen(fifo_buf) - 1 ] = '\0'; /*terminate \n in order to allow next strlen()  call to return 0 on just pressing enter*/
+            if( strlen(fifo_buf + client_fifo_name_len +1) == 0 ) { //printf("\n");
+                continue;
+            }
             operation();
 
-            if(bytes == 0) continue;
+            if(bytes == 0) { printf("\n"); continue;}
 
             fifo_buf[ bytes ] = '\0'; /* terminate for printing */
             printf("%s", fifo_buf);
@@ -98,7 +118,15 @@ int main(int argc, char **argv){
             /* reset place for numbers in the buffer */
             memset(fifo_buf + client_fifo_name_len +1, 0, 4096 -  client_fifo_name_len - 1 );
         }
-
+        /* reached when EOF is reached when reading directed input from a file */
+        /* Another "Enter number:" was printed before EOF was detected.
+           To remove it: 
+           -    1st \r (carriage return) moves cursor to the beginning of its line
+           -    Spaces overwrite the printed "Enter numbers:"
+           -    2nd \r moves cursor again to the beginning of the line
+           -    Then \b (backspace) removes the new line character before the cursor
+        */
+        printf("\r              \r\b");
     }
     else{
         /*values passed via argv */
