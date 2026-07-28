@@ -48,16 +48,20 @@ int main(int argc, char **argv){
     /* Code */
     while(1){
         memset(buf, 0, sizeof(buf));
-        if( (bytes_read = read(fd_server, buf, sizeof(buf))) < 0){
+        errno = 0;
+        while( (bytes_read = read(fd_server, buf, sizeof(buf))) < 0
+                && (errno == EAGAIN || errno == EWOULDBLOCK) ); /* retry reading on blockage*/
+        if( bytes_read == 0) continue;
+        if( errno != 0 || errno != EAGAIN || errno != EWOULDBLOCK){
             perror("read: ");
         }
-        if( bytes_read == 0) continue;
         /* Tokenize receieved string */
-        return_fifo = strtok(buf,", \t\n");
-        while( (numbers[i] = strtok(NULL, ", \t\n")) != NULL && (i< MAX_NUMBERS)){
+        return_fifo = strtok(buf,", \t\n\0");
+	    i=0; /*mandatory: reset i*/
+        while( (numbers[i] = strtok(NULL, ", \t\n\0")) != NULL && (i< MAX_NUMBERS)){
             i++;
         }
-        total_numbers = i;
+        total_numbers = i; sum = 0; /*mandatory: reset sum*/
         for(i = 0 ; i < total_numbers; i++){
             tmp_d = strtod(numbers[i], &ptr);
             if( *ptr != '\0'){
@@ -66,13 +70,14 @@ int main(int argc, char **argv){
             sum += tmp_d;
         }
         /* open client fifo file */
-        if( (fd_client = open(return_fifo, O_WRONLY | O_NONBLOCK)) ){
+        if( (fd_client = open(return_fifo, O_WRONLY | O_NONBLOCK)) < 0 ){
             perror("open: client fifo ");
             exit(errno);
         }
         if(error){
             sprintf(buf, "error in input.\n");
-        }
+	    error = 0; /* mandatory: reset error */
+	}
         else{
             sprintf(buf, "sum = %.8g\n\0", sum);
         }
@@ -84,7 +89,6 @@ int main(int argc, char **argv){
         if( close(fd_client) < 0){
             perror("close: ");
         }
-
     }
     return 0;
 }
