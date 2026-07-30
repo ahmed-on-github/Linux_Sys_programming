@@ -25,6 +25,9 @@
 
 static char fifo_buf [4096];
 
+static char fifo_buf [4096], tmp_fifo_buf [4096];
+static char result_buf [64];
+
 int fd_client, fd_server, bytes ;
 char client_fifo_name [40] ;
 
@@ -61,7 +64,7 @@ int main(int argc, char **argv){
     signal_struct.sa_flags = 0;
     signal_struct.sa_handler = signal_handler;
 
-    sigaction(SIGTERM, &signal_struct, NULL);
+    sigaction(SIGINT, &signal_struct, NULL);
 
     /* Create Fifo for client process */
     snprintf(client_fifo_name, sizeof(client_fifo_name)
