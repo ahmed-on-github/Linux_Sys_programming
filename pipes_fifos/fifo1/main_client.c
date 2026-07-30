@@ -23,8 +23,6 @@
 
 //#define INPUT_REDIRECT_FLAG
 
-static char fifo_buf [4096];
-
 static char fifo_buf [4096], tmp_fifo_buf [4096];
 static char result_buf [64];
 
