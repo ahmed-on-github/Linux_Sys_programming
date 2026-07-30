@@ -53,6 +53,7 @@ void operation(void){
 void signal_handler(int signum){
     printf("signal %s received\n", strsignal(signum));
     close(fd_client); close(fd_server);
+    exit(0);
 }
 int main(int argc, char **argv){
     char *fgets_ptr = NULL;
