@@ -220,6 +220,7 @@ int main(int argc, char **argv){
             memcpy(fifo_buf+ strlen(fifo_buf), argv[i], strlen(argv[i]));
             fifo_buf[strlen(fifo_buf)] = ' '; /* Separate with spaces */
         }
+        printf("Enter numbers: %s\n", fifo_buf + client_fifo_name_len + 1);
         operation();
         fifo_buf[ bytes ] = '\0'; /* null-terminate for printing */
         printf("%s", fifo_buf);
