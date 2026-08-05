@@ -12,10 +12,10 @@
 #include <string.h>
 
 #include <errno.h>
+
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-
 #include <signal.h>
 
 #define SERVER_FIFO "/tmp/addition_server_fifo"
@@ -23,11 +23,19 @@
 
 //#define INPUT_REDIRECT_FLAG
 
-static char fifo_buf [4096], tmp_fifo_buf [4096];
+static char fifo_buf [4096], tmp_fifo_buf [64];
 static char result_buf [64];
-
-int fd_client, fd_server, bytes ;
 char client_fifo_name [40] ;
+
+size_t client_fifo_name_len;
+
+int fd_client, fd_server;
+int bytes = 0;
+int started_flag = 0;
+int interactive_input_flag = 0;
+int feof_flag = 0;
+
+
 
 void operation(void){
     /* Open server fifo for writing */
@@ -53,9 +61,9 @@ void operation(void){
 void signal_handler(int signum){
     printf("signal %s received\n", strsignal(signum));
     close(fd_client); close(fd_server);
-    exit(0);
 }
 int main(int argc, char **argv){
+
     char *fgets_ptr = NULL;
 
 
@@ -63,6 +71,7 @@ int main(int argc, char **argv){
     signal_struct.sa_flags = 0;
     signal_struct.sa_handler = signal_handler;
 
+    sigaction(SIGTERM, &signal_struct, NULL);
     sigaction(SIGINT, &signal_struct, NULL);
 
     /* Create Fifo for client process */
@@ -92,7 +101,7 @@ int main(int argc, char **argv){
     fcntl(fd_client, F_SETFD, fd_client_flags);
     */
     /* place fifo name in buffer */
-    size_t client_fifo_name_len = strlen(client_fifo_name);
+    client_fifo_name_len = strlen(client_fifo_name);
 
     memcpy(fifo_buf, client_fifo_name, client_fifo_name_len);
     fifo_buf[client_fifo_name_len] = ' '; /*separate fifo name with a space*/
@@ -111,14 +120,16 @@ int main(int argc, char **argv){
     #endif /* INPUT_REDIRECT_FLAG */
 
     /* read buffer */
-    if(argc == 1){
+    if(argc == 1){ /* still = 1 when using < testfile (input redirection, done by shell)*/
         /*
         while( printf("Enter numbers: ") && fread(fifo_buf + client_fifo_name_len + 1,
                             1, 4096 -  client_fifo_name_len - 1,
                             stdin) > 0 ){ */ /* fread() does not stop on \n */
-        int started_flag = 0;
-        int feof_flag = 0;
+        started_flag = 0;
+        int interactive_input_flag = isatty(STDIN_FILENO);
+        feof_flag = 0;
         do{
+            __begin:
             if(started_flag == 0){
                 /* New line prompt and reading 1 line of input */
                 if( interactive_input_flag ){
@@ -129,31 +140,39 @@ int main(int argc, char **argv){
                 }
                 else{
                     snprintf(tmp_fifo_buf, sizeof(tmp_fifo_buf), "Enter numbers: ");
-                    fgets_ptr = fgets(tmp_fifo_buf + 15 /*strlen(tmp_fifo_buf) */+ 1,
-                                4096 - 15 /* strlen(tmp_fifo_buf) */ -1, input_fptr);
+                    fgets_ptr = fgets(tmp_fifo_buf + 15 /*strlen("Enter numbers: ") */,
+                                sizeof(tmp_fifo_buf) - 15 /* strlen("Enter numbers: ") */ , input_fptr);
+                    memcpy(fifo_buf + client_fifo_name_len +1, tmp_fifo_buf + 15 , strlen(tmp_fifo_buf + 15));
                 }
+            }
+            /*terminate \n in order to allow next strlen()  call to return 0 on just pressing enter (\n)*/
+            fifo_buf[ strlen(fifo_buf) - 1 ] = '\0';
 
-            }
-            fifo_buf[ strlen(fifo_buf) - 1 ] = '\0'; /*terminate \n in order to allow next strlen()  call to return 0 on just pressing enter (\n)*/
             if( strlen(fifo_buf + client_fifo_name_len +1) == 0 ) {
-                goto retry; /* continue; //  for older vesrion with while() */ 
+                if (started_flag == 1)
+                    goto __redo;
+                goto __begin;
             }
-            /* save redirected input from a file before getting out of the do-while loop
-               in order to print the output before the sum */
-            memcpy(tmp_fifo_buf,fifo_buf + client_fifo_name_len +1, strlen(fifo_buf + client_fifo_name_len +1));
 
             operation();
 
-            if(bytes == 0) { printf("\n"); goto retry; }
+            if(bytes == 0) { printf("\n"); goto __redo; }
 
             fifo_buf[ bytes ] = '\0'; /* terminate for printing */
 
-            memcpy(result_buf, fifo_buf, strlen(fifo_buf));
-            if(input_fptr == stdin)
+
+            if(interactive_input_flag)
+                memcpy(result_buf, fifo_buf, strlen(fifo_buf));
+            else{
+                tmp_fifo_buf[ strlen(tmp_fifo_buf) ] = ' ';
+                memcpy(tmp_fifo_buf + strlen(tmp_fifo_buf), fifo_buf, strlen(fifo_buf) );
+            }
+
+            if(interactive_input_flag)
                 printf("%s", fifo_buf);
             started_flag = 1; /* for next iterations */
 
-retry:
+            __redo:
             /* reset fifo buf for resending */
             memcpy(fifo_buf, client_fifo_name, client_fifo_name_len);
             fifo_buf[client_fifo_name_len] = ' '; /*separate fifo name with a space*/
@@ -162,32 +181,38 @@ retry:
             memset(fifo_buf + client_fifo_name_len +1, 0, 4096 -  client_fifo_name_len - 1 );
 
 
-            printf("Enter numbers: "); fflush(stdout);
-            fgets_ptr = fgets(fifo_buf + client_fifo_name_len +1,
-                              4096 -  client_fifo_name_len - 1, input_fptr);
+            /* New line prompt and reading 1 line of input */
+            if( interactive_input_flag ){
+                printf("Enter numbers: ");
+                fflush(stdout);
+                fgets_ptr = fgets(fifo_buf + client_fifo_name_len +1,
+                            4096 -  client_fifo_name_len - 1, input_fptr);
+            }
+            else{
+                fgets_ptr = fgets(fifo_buf + client_fifo_name_len +1,
+                            4096 -  client_fifo_name_len - 1, input_fptr);
+
+                if(  strlen(tmp_fifo_buf) + strlen("Enter numbers: ")+ strlen(fifo_buf + client_fifo_name_len +1) > sizeof(tmp_fifo_buf)  ){
+                    printf("%s", tmp_fifo_buf);
+                    memset(tmp_fifo_buf, 0 , sizeof(tmp_fifo_buf));
+
+                }
+                strcat(tmp_fifo_buf +  strlen(tmp_fifo_buf) , "Enter numbers: ");
+                memcpy( tmp_fifo_buf +  strlen(tmp_fifo_buf), fifo_buf + client_fifo_name_len +1, strlen(fifo_buf + client_fifo_name_len +1));
+            }
             feof_flag = feof(stdin);
             /* simutale redirected input behaviour for debugging */
             #ifdef INPUT_REDIRECT_FLAG
             fgets_ptr = NULL; feof_flag = 1;
             #endif /* INPUT_REDIRECT_FLAG */
+
         }while( fgets_ptr != NULL && feof_flag == 0);
         /* EOF reached while using input redirection */
 
-        /* (For previous while() version)
-           Another "Enter number:" was printed before EOF was detected.
-           To remove it and its whole line :
-           -    1st \r (carriage return) moves cursor to the beginning of its line
-           -    Enough spaces to overwrite the printed "Enter numbers:"
-           -    2nd \r moves cursor again to the beginning of the line
-           -    Then \b (backspace) removes the new line character before the cursor
-        */
-        /* printf("\r              \r\b"); */
-        /* For current version with do-while() */
-        printf("\b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b");
-
         /* print the re-directed input as it is not yet written on the console */
-        printf(" %s\n", tmp_fifo_buf); /* \n flushes stdout */
-        printf("%s", result_buf); /* already contains \n*/
+        printf("%s", tmp_fifo_buf);
+        /* Remove last prompt line "Enter numbers: " */
+        printf("\b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b \b\b");;
     }
     else{
         /*values passed via argv */
@@ -196,11 +221,10 @@ retry:
             fifo_buf[strlen(fifo_buf)] = ' '; /* Separate with spaces */
         }
         operation();
-        fifo_buf[ bytes ] = '\0'; /* terminate for printing */
+        fifo_buf[ bytes ] = '\0'; /* null-terminate for printing */
         printf("%s", fifo_buf);
         close(fd_client);  // close(fd_server); already closed in operaion()
     }
     return 0;
 
 }
-
