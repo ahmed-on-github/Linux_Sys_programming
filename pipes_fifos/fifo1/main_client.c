@@ -1,6 +1,6 @@
 /* (Still not working)
  * build as:
- *    $ gcc main_client.c -o add-client-fifo
+ *    $ gcc  -ggdb main_client.c -o add-client-fifo
  * run as:
  *    $ ./add-client-fifo         # reads input from stdin, entered by user , line by line 
  *    $ ./add-client-fifo < file  # reads input from stdin, redirected from file , line by line, till EOF
