@@ -4,7 +4,7 @@
  * run as:
  *    $ ./add-client-fifo         # reads input from stdin, entered by user , line by line 
  *    $ ./add-client-fifo < file  # reads input from stdin, redirected from file , line by line, till EOF
- *    $ ./add-client-fifo         # reads input from argv, runs once on argv
+ *    $ ./add-client-fifo 1 2 3   # reads input from argv, runs once on argv
  */
 
 #include <stdio.h>
