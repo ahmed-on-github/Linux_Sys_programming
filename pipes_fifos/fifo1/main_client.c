@@ -120,9 +120,19 @@ int main(int argc, char **argv){
         int feof_flag = 0;
         do{
             if(started_flag == 0){
-                printf("Enter numbers: "); fflush(stdout);
-                fgets_ptr = fgets(fifo_buf + client_fifo_name_len +1,
-                                  4096 -  client_fifo_name_len - 1, input_fptr);
+                /* New line prompt and reading 1 line of input */
+                if( interactive_input_flag ){
+                    printf("Enter numbers: ");
+                    fflush(stdout);
+                    fgets_ptr = fgets(fifo_buf + client_fifo_name_len +1,
+                                4096 -  client_fifo_name_len - 1, input_fptr);
+                }
+                else{
+                    snprintf(tmp_fifo_buf, sizeof(tmp_fifo_buf), "Enter numbers: ");
+                    fgets_ptr = fgets(tmp_fifo_buf + 15 /*strlen(tmp_fifo_buf) */+ 1,
+                                4096 - 15 /* strlen(tmp_fifo_buf) */ -1, input_fptr);
+                }
+
             }
             fifo_buf[ strlen(fifo_buf) - 1 ] = '\0'; /*terminate \n in order to allow next strlen()  call to return 0 on just pressing enter (\n)*/
             if( strlen(fifo_buf + client_fifo_name_len +1) == 0 ) {
