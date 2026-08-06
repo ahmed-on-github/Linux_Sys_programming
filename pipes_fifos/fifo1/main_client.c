@@ -1,4 +1,4 @@
-/* (Still not working)
+/* 
  * build as:
  *    $ gcc  -ggdb main_client.c -o add-client-fifo
  * run as:
